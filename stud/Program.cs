@@ -38,7 +38,7 @@ public class Program
         {
             options.AddPolicy("AllowAngular", policy =>
             {
-                policy.WithOrigins("http://localhost:4200")
+                policy.WithOrigins("http://localhost:4200", "http://localhost:4201")
                       .AllowAnyHeader()
                       .AllowAnyMethod();
             });
@@ -113,8 +113,12 @@ public class Program
             });
         }
 
-        app.UseHttpsRedirection();
         app.UseCors("AllowAngular");
+
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHttpsRedirection();
+        }
         app.UseAuthorization();
         app.MapControllers();
 

@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using stud.DTOs.Student;
 using stud.Feature.Student.Command.CreateStudent;
+using stud.Feature.Student.Command.DeleteStudent;
+using stud.Feature.Student.Command.UpdateStudent;
 using stud.Feature.Student.Queries.GetAllStudents;
 using stud.Feature.Student.Queries.GetStudentById;
 
@@ -45,5 +47,27 @@ public class StudentController : ControllerBase
             nameof(GetStudentById),
             new { id = result.Id },
             result);
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> UpdateStudent(int id, StudentRequestDto dto)
+    {
+        var result = await _mediator.Send(new UpdateStudentCommand(id, dto));
+
+        if (result == null)
+            return NotFound();
+
+        return Ok(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteStudent(int id)
+    {
+        var deleted = await _mediator.Send(new DeleteStudentCommand(id));
+
+        if (!deleted)
+            return NotFound();
+
+        return NoContent();
     }
 }

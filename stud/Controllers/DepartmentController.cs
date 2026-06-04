@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using stud.DTOs.Department;
 using stud.Feature.Department.Command.CreateDepartment;
+using stud.Feature.Department.Command.DeleteDepartment;
+using stud.Feature.Department.Command.UpdateDepartment;
 using stud.Feature.Department.Queries.GetAllDepartments;
 using stud.Feature.Department.Queries.GetDepartmentById;
 
@@ -45,5 +47,27 @@ public class DepartmentController : ControllerBase
             nameof(GetDepartmentById),
             new { id = result.Id },
             result);
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> UpdateDepartment(int id, DepartmentRequestDto dto)
+    {
+        var result = await _mediator.Send(new UpdateDepartmentCommand(id, dto));
+
+        if (result == null)
+            return NotFound();
+
+        return Ok(result);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteDepartment(int id)
+    {
+        var deleted = await _mediator.Send(new DeleteDepartmentCommand(id));
+
+        if (!deleted)
+            return NotFound();
+
+        return NoContent();
     }
 }
