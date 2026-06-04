@@ -1,312 +1,123 @@
 # Stud — Student & Department Management
 
-Full-stack app for managing **students** and **departments**.
+Full-stack application to manage **students** and **departments**: create, read, update, and delete records, with students linked to a department.
 
-| Part | Location | Stack |
-|------|----------|--------|
-| Backend | `stud/` | ASP.NET Core 10, EF Core, MediatR, SQL Server |
-| Frontend | `C:\Users\malak\OneDrive\Documents\Angular\stud-client` | Angular 21, signals, HttpClient |
+## Repositories
 
-**API:** `http://localhost:5275/api`  
-**Angular:** `http://localhost:4200` (or `4201` if another app uses 4200)
+| Part | Repository / location |
+|------|------------------------|
+| **Frontend** | [github.com/malakmahersoliman/studentFrontEnd](https://github.com/malakmahersoliman/studentFrontEnd) |
+| **Backend** | This repo (`stud/` project) |
+
+Clone the frontend:
+
+```powershell
+git clone https://github.com/malakmahersoliman/studentFrontEnd.git
+cd studentFrontEnd
+npm install
+```
 
 ---
 
-## How to run
+## Tech stack
 
-**Backend**
+| Layer | Technologies |
+|-------|----------------|
+| Backend | ASP.NET Core 10, EF Core, SQL Server, MediatR, FluentValidation, Swagger |
+| Frontend | Angular 21, standalone components, signals, HttpClient, reactive forms |
+
+**URLs (local development)**
+
+| App | URL |
+|-----|-----|
+| API | `http://localhost:5275/api` |
+| Swagger | `http://localhost:5275/swagger` |
+| Angular | `http://localhost:4200` (use `4201` if port 4200 is busy) |
+
+---
+
+## Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Node.js](https://nodejs.org/) (LTS) + npm
+- SQL Server (local instance; connection string in `stud/appsettings.json`)
+- EF Core tools (first time only): `dotnet tool install --global dotnet-ef`
+
+---
+
+## Quick start
+
+**1. Backend** (from this repo, `stud` folder)
+
 ```powershell
 cd stud
 dotnet run --launch-profile http
 ```
 
-**Frontend**
+**2. Frontend** (GitHub repo or local copy)
+
 ```powershell
-cd C:\Users\malak\OneDrive\Documents\Angular\stud-client
+cd studentFrontEnd
 npm start
 ```
 
-Swagger (development): `http://localhost:5275/swagger`
+**3. Browser**
+
+- Departments: `/departments`
+- Students: `/students`
+
+Create at least one **department** before adding **students**.
 
 ---
 
-## Implementation steps
-
-Follow this order when adding or rebuilding the project. **`Program.cs` is updated in small steps** as each layer is added — do not leave all registration until the end.
+## Project structure
 
 ### Backend (`stud/`)
 
-#### 1. Domain entities
+```
+stud/
+├── Domain/                 # Student, Department entities
+├── Data/
+│   ├── AppDbContext.cs
+│   └── Configurations/     # Fluent API
+├── DTOs/
+│   ├── Department/
+│   └── Student/
+├── Feature/                # MediatR commands & queries
+│   ├── Department/
+│   └── Student/
+├── Controllers/
+├── Common/Behaviors/       # Validation pipeline
+├── Migrations/
+├── Program.cs
+└── appsettings.json
+```
 
-Create the core models and their relationship.
+### Frontend ([studentFrontEnd](https://github.com/malakmahersoliman/studentFrontEnd))
 
-- `Domain/Student.cs` — `Id`, `Name`, `Navname`, `DepartmentId`, navigation to `Department`
-- `Domain/Department.cs` — `Id`, `Name`, collection of `Students`
+```
+src/app/
+├── models/
+├── services/               # HTTP + signals
+├── components/             # navbar
+├── pages/
+│   ├── departments/
+│   ├── department-details/
+│   └── students/
+├── app.routes.ts
+└── app.config.ts
 
-**`Program.cs`:** nothing new yet.
-
----
-
-#### 2. `AppDbContext`
-
-- `Data/AppDbContext.cs` — inherit `DbContext`
-- Add `DbSet<Department>` and `DbSet<Student>`
-- In `OnModelCreating`, call `ApplyConfigurationsFromAssembly` so Fluent API configs are picked up
-
-**`appsettings.json`:** add `ConnectionStrings:DefaultConnection` (SQL Server).
-
-**`Program.cs` — register services:**
-```csharp
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+src/environments/environment.ts   # apiUrl → backend
 ```
 
 ---
 
-#### 3. Fluent API configuration
-
-One configuration class per entity (table rules, keys, lengths, relationships).
-
-- `Data/Configurations/DepartmentConfiguration.cs`
-- `Data/Configurations/StudentConfiguration.cs`
-
-Example: required `Name`, max length, foreign key `DepartmentId`, cascade delete from department to students.
-
-**`Program.cs`:** no change (configs are applied inside `AppDbContext`).
-
----
-
-#### 4. Migration
-
-```powershell
-cd stud
-dotnet ef migrations add InitialCreate
-dotnet ef database update
-```
-
-**`Program.cs` — after `var app = builder.Build();`:**
-```csharp
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    dbContext.Database.Migrate();
-}
-```
-
----
-
-#### 5. DTOs
-
-Request/response shapes for the API (do not expose EF entities from controllers).
-
-- `DTOs/Department/` — `DepartmentRequestDto`, `DepartmentResponseDto`
-- `DTOs/Student/` — `StudentRequestDto`, `StudentResponseDto`
-
-**`Program.cs`:** no change.
-
----
-
-#### 6. Features (CQRS with MediatR)
-
-Organize by entity: **Command** (write) or **Query** (read). Build **one command or query at a time** — class + handler, then test.
-
-**`Program.cs` — when you add the first feature (before handlers can run):**
-```csharp
-builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
-```
-
-**Optional — FluentValidation + pipeline behavior** (`Common/Behaviors/ValidationBehavior.cs`):
-```csharp
-builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-```
-
-**`Program.cs` — exception handling (after MediatR / validation):**
-```csharp
-app.UseExceptionHandler(/* map ValidationException, KeyNotFoundException, etc. */);
-```
-
-**Department**
-
-| Step | Folder | What to build |
-|------|--------|----------------|
-| Command | `Feature/Department/Command/CreateDepartment/` | `CreateDepartmentCommand` + handler |
-| Command | `Feature/Department/Command/UpdateDepartment/` | `UpdateDepartmentCommand` + handler |
-| Command | `Feature/Department/Command/DeleteDepartment/` | `DeleteDepartmentCommand` + handler |
-| Query | `Feature/Department/Queries/GetAllDepartments/` | `GetAllDepartmentsQuery` + handler |
-| Query | `Feature/Department/Queries/GetDepartmentById/` | `GetDepartmentByIdQuery` + handler (include students) |
-
-**Student**
-
-| Step | Folder | What to build |
-|------|--------|----------------|
-| Command | `Feature/Student/Command/CreateStudent/` | `CreateStudentCommand` + handler |
-| Command | `Feature/Student/Command/UpdateStudent/` | `UpdateStudentCommand` + handler |
-| Command | `Feature/Student/Command/DeleteStudent/` | `DeleteStudentCommand` + handler |
-| Query | `Feature/Student/Queries/GetAllStudents/` | `GetAllStudentsQuery` + handler |
-| Query | `Feature/Student/Queries/GetStudentById/` | `GetStudentByIdQuery` + handler |
-
-New handlers are picked up automatically by `RegisterServicesFromAssembly` — no extra line in `Program.cs` per handler.
-
----
-
-#### 7. Controllers
-
-Thin API layer — inject `IMediator`, send commands/queries, return HTTP results.
-
-- `Controllers/DepartmentController.cs` — `GET`, `GET {id}`, `POST`, `PUT {id}`, `DELETE {id}`
-- `Controllers/StudentController.cs` — same pattern
-
-Route: `[Route("api/[controller]")]` → `/api/department`, `/api/student`.
-
-**`Program.cs` — register and map (if not already):**
-```csharp
-builder.Services.AddControllers();
-// ...
-app.MapControllers();
-```
-
-**`Program.cs` — Swagger (development):**
-```csharp
-builder.Services.AddSwaggerGen(/* ... */);
-// after Build:
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(/* ... */);
-}
-```
-
----
-
-#### 8. Frontend integration (CORS + HTTP pipeline)
-
-When the Angular app will call the API:
-
-**`Program.cs` — CORS:**
-```csharp
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAngular", policy =>
-    {
-        policy.WithOrigins("http://localhost:4200", "http://localhost:4201")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
-});
-
-app.UseCors("AllowAngular");
-```
-
-**`Program.cs` — HTTPS (local dev):** skip redirect so `http://localhost:5275` works from the browser:
-```csharp
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
-
-app.UseAuthorization();
-```
-
----
-
-#### `Program.cs` checklist (summary)
-
-| Step | What you add in `Program.cs` |
-|------|------------------------------|
-| 2 – DbContext | `AddDbContext<AppDbContext>` |
-| 4 – Migration | `Database.Migrate()` on startup |
-| 6 – Features | `AddMediatR`, optional validators + `ValidationBehavior`, `UseExceptionHandler` |
-| 7 – Controllers | `AddControllers`, `MapControllers`, Swagger |
-| 8 – Angular | `AddCors`, `UseCors`, conditional `UseHttpsRedirection` |
-
----
-
-### Frontend (`stud-client/`)
-
-Same idea: register providers in **`app.config.ts`** as each layer appears.
-
-#### 1. Models
-
-TypeScript interfaces matching API DTOs.
-
-- `models/department.model.ts` — `Department`, `DepartmentRequest`
-- `models/student.model.ts` — `Student`, `StudentRequest`
-
-**`app.config.ts`:** no change.
-
----
-
-#### 2. Environment
-
-- `environments/environment.ts` — `apiUrl: 'http://localhost:5275/api'`
-
-**`app.config.ts`:** no change.
-
----
-
-#### 3. Services
-
-HTTP + **signals** for list state.
-
-- `services/department.service.ts` — load, create, update, delete
-- `services/student.service.ts` — load, create, update, delete
-
-**`app.config.ts` — register HttpClient:**
-```typescript
-import { provideHttpClient } from '@angular/common/http';
-
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideHttpClient(),
-    // ...
-  ],
-};
-```
-
----
-
-#### 4. Components
-
-Reusable UI.
-
-- `components/navbar/` — links to Departments and Students
-
-**`app.config.ts`:** no change (components are imported where used).
-
----
-
-#### 5. Pages + routing
-
-Smart components: lists, forms, edit, delete.
-
-- `pages/departments/`
-- `pages/department-details/`
-- `pages/students/`
-- `app.routes.ts` — lazy-loaded routes
-
-**`app.config.ts` — register router:**
-```typescript
-import { provideRouter } from '@angular/router';
-import { routes } from './app.routes';
-
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideRouter(routes),
-    provideHttpClient(),
-  ],
-};
-```
-
----
-
-#### `app.config.ts` checklist (summary)
-
-| Step | What you add |
-|------|----------------|
-| 3 – Services | `provideHttpClient()` |
-| 5 – Pages | `provideRouter(routes)` |
+## Features
+
+- List, add, edit, and delete **departments**
+- List, add, edit, and delete **students** (with department dropdown)
+- View one department and its students (`/departments/:id`)
+- API documented with Swagger in Development
 
 ---
 
@@ -324,6 +135,84 @@ export const appConfig: ApplicationConfig = {
 
 ## Database
 
-Default catalog: **StudTest** (`appsettings.json` → `DefaultConnection`).
+- Catalog: **StudTest** (configurable in `appsettings.json` → `ConnectionStrings:DefaultConnection`)
+- Deleting a department removes its students (cascade)
+- Migrations run on startup in Development (`Database.Migrate()` in `Program.cs`)
 
-Create departments before students; each student needs a valid `departmentId`.
+---
+
+## Implementation guide
+
+Build the project **layer by layer**. Register services in **`Program.cs`** (backend) and **`app.config.ts`** (frontend) as you go — not all at the end.
+
+### Backend
+
+| Step | What to build | `Program.cs` |
+|------|---------------|--------------|
+| 1 | **Entities** — `Domain/Student.cs`, `Domain/Department.cs` | — |
+| 2 | **AppDbContext** — `DbSet`s, `ApplyConfigurationsFromAssembly` | `AddDbContext<AppDbContext>` + connection string in `appsettings.json` |
+| 3 | **Fluent API** — `Data/Configurations/*Configuration.cs` | — |
+| 4 | **Migration** — `dotnet ef migrations add InitialCreate` | `Database.Migrate()` after `Build()` |
+| 5 | **DTOs** — request/response per entity | — |
+| 6 | **Features** — MediatR handlers (see below) | `AddMediatR`, optional `AddValidatorsFromAssembly` + `ValidationBehavior`, `UseExceptionHandler` |
+| 7 | **Controllers** — `DepartmentController`, `StudentController` | `AddControllers`, `MapControllers`, Swagger in Development |
+| 8 | **Angular client** | `AddCors` (`4200`, `4201`), `UseCors`, skip `UseHttpsRedirection` in Development |
+
+**Features — build in this order for each entity**
+
+Commands (write):
+
+1. **Create** — command + handler  
+2. **Update** — command + handler  
+3. **Delete** — command + handler  
+
+Queries (read):
+
+4. **GetAll** — query + handler  
+5. **GetById** — query + handler (department: include `Students`)
+
+Folders follow: `Feature/{Entity}/Command/{Action}/` and `Feature/{Entity}/Queries/{Action}/`.
+
+Handlers use `AppDbContext`; controllers only call `_mediator.Send(...)`.
+
+### Frontend
+
+| Step | What to build | `app.config.ts` |
+|------|---------------|-----------------|
+| 1 | **Models** — `department.model.ts`, `student.model.ts` | — |
+| 2 | **Environment** — `apiUrl: 'http://localhost:5275/api'` | — |
+| 3 | **Services** — CRUD methods, signals for lists | `provideHttpClient()` |
+| 4 | **Components** — e.g. `navbar` | — |
+| 5 | **Pages** — departments, department-details, students + `app.routes.ts` | `provideRouter(routes)` |
+
+---
+
+## Configuration notes
+
+**Frontend API URL** (`src/environments/environment.ts`):
+
+```typescript
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:5275/api',
+};
+```
+
+**CORS** must allow the port Angular uses (`Program.cs` → `AllowAngular` policy).
+
+---
+
+## Troubleshooting
+
+| Problem | What to do |
+|---------|------------|
+| `Unable to load departments` in UI | Start the API; use `http` profile on port **5275**; refresh the page |
+| `MSB3027` / `stud.exe` locked | Stop the running API (Shift+F5 or end **stud** process), then rebuild |
+| API works in browser but not from Angular | Check CORS port (`4200` / `4201`); avoid HTTPS redirect in Development |
+| Empty student list after delete department | Expected if cascade removed students; list reloads from API |
+
+---
+
+## Author
+
+Malak Maher Soliman — frontend: [studentFrontEnd](https://github.com/malakmahersoliman/studentFrontEnd)
